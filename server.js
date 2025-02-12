@@ -1,62 +1,74 @@
-require('dotenv').config();
-const express = require('express');
-const mysql = require('mysql2');
-const cors = require('cors');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+require("dotenv").config();
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ✅ Connect to MySQL (`db2342003`)
-const db = mysql.createConnection({
-    host: '134.220.4.152', 
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
+const PHP_API_URL = "http://OpenDayApp.free.nf/api.php"; // ✅ Replace with your actual PHP API URL
+
+// ✅ User Signup (Calls PHP API)
+app.post("/signup", async (req, res) => {
+    try {
+        const response = await axios.post(PHP_API_URL, req.body, {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to connect to backend." });
+    }
 });
 
-db.connect(err => {
-    if (err) throw err;
-    console.log('✅ Connected to MySQL Database: db2342003');
+// ✅ User Login (Calls PHP API)
+app.post("/login", async (req, res) => {
+    try {
+        const response = await axios.post(PHP_API_URL + "?action=login", req.body, {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to connect to backend." });
+    }
 });
 
-// ✅ User Signup (Registers new users)
-app.post('/signup', async (req, res) => {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    db.query("INSERT INTO users (username, password, role) VALUES (?, ?, 'user')", 
-        [username, hashedPassword], 
-        (err, result) => {
-            if (err) return res.status(400).json({ error: "Username already exists!" });
-            res.json({ message: "User registered successfully!" });
-        }
-    );
+// ✅ Anonymous Login (Calls PHP API)
+app.post("/anonymous", async (req, res) => {
+    try {
+        const response = await axios.post(PHP_API_URL + "?action=anonymous", {}, {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to connect to backend." });
+    }
 });
 
-// ✅ User Login (Checks user credentials & role)
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
+// ✅ Send Chat Message (Calls PHP API)
+app.post("/chat", async (req, res) => {
+    try {
+        const response = await axios.post(PHP_API_URL + "?action=sendMessage", req.body, {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to send message." });
+    }
+});
 
-    db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
-        if (err) throw err;
-        if (results.length === 0) return res.status(400).json({ error: "User not found!" });
-
-        const isMatch = await bcrypt.compare(password, results[0].password);
-        if (!isMatch) return res.status(400).json({ error: "Incorrect password!" });
-
-        // ✅ Generate JWT Token
-        const token = jwt.sign({ username, role: results[0].role }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-        res.json({ message: "Login successful!", username: results[0].username, role: results[0].role, token });
-    });
+// ✅ Get Chat Messages (Calls PHP API)
+app.get("/chat", async (req, res) => {
+    try {
+        const response = await axios.get(PHP_API_URL + "?action=getMessages");
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch chat messages." });
+    }
 });
 
 // ✅ Start Server
-const PORT = 8080;
-app.listen(PORT, '0.0.0.0', () => { // ✅ Listen on ALL IP addresses
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
 });
-
