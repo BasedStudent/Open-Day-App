@@ -21,7 +21,7 @@ class _EventOverviewScreenState extends State<EventOverviewScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // ✅ Hide "Welcome, *username*" after 3 seconds
     Timer(Duration(seconds: 3), () {
       if (mounted) {
@@ -71,13 +71,16 @@ class _EventOverviewScreenState extends State<EventOverviewScreen> {
               ),
             ),
 
-            // ✅ Main Content
-            Center(
+            // ✅ Scrollable Content (Fix Overflow Issue)
+            SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // 🔹 Logo Image (Added Here - Slightly Smaller)
+                    Image.asset('assets/images/logo.png', height: 100, width: 100),
+                    SizedBox(height: 20),
+
                     // 🏆 Title
                     Text(
                       "Activities Throughout the Day",

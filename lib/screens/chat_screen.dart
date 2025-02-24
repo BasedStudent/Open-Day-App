@@ -18,18 +18,18 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserName();
+    _loadUserName(); // Get the username when the screen initializes
   }
 
-  // ✅ Load the user's saved name from SharedPreferences
+  // Load the user's saved name from SharedPreferences
   Future<void> _loadUserName() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      userName = prefs.getString('userName') ?? "Anonymous";
+      userName = prefs.getString('userName') ?? "Anonymous"; // Default to Anonymous if no username is saved
     });
   }
 
-  // ✅ Send a message to Firestore
+  // Send a message to Firebase Firestore
   void _sendMessage() async {
     if (_messageController.text.trim().isNotEmpty) {
       await FirebaseFirestore.instance
@@ -49,10 +49,12 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Live Chat - ${widget.sessionCode}")),
+      appBar: AppBar(
+        title: Text("Live Chat - ${widget.sessionCode}"),
+      ),
       body: Column(
         children: [
-          // ✅ Display Messages in Real-Time
+          // Display messages in real-time
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -69,7 +71,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 final messages = snapshot.data!.docs;
 
                 return ListView.builder(
-                  reverse: true, // ✅ Show newest messages at the bottom
+                  reverse: true, // Show newest messages at the bottom
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     var messageData = messages[index];
@@ -85,7 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // ✅ Input Field for Sending Messages
+          // Input field for sending messages
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -111,7 +113,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ✅ Custom Bubble for Messages
+  // Custom message bubble
   Widget _buildMessageBubble(String sender, String message, bool isMine) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,

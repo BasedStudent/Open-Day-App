@@ -23,165 +23,150 @@ class _SignupScreenState extends State<SignupScreen> {
     await prefs.setString('userName', username);
   }
 
-// ✅ Signup Function (Handles Username Already Taken)
-Future<void> _signup() async {
-  setState(() {
-    _isLoading = true; // Show loading indicator
-  });
-
-  try {
-    final response = await http.post(
-      Uri.parse('http://192.168.50.201:8080/signup'), // ✅ Update with your server IP
-      headers: {"Content-Type": "application/json"},
-      body: json.encode({
-        "username": _usernameController.text.trim(),
-        "password": _passwordController.text.trim(),
-        "email": _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-      }),
-    );
-
+  // ✅ Signup Function (Handles Username Already Taken)
+  Future<void> _signup() async {
     setState(() {
-      _isLoading = false; // Hide loading indicator
+      _isLoading = true;
     });
 
-    var responseData = json.decode(response.body);
-
-    if (response.statusCode == 200 && responseData['success'] == true) {
-      await _saveUserSession(_usernameController.text.trim()); // ✅ Store username
-
-      // ✅ Redirect to Login Screen after successful signup
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => LoginScreen()),
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.13.16:8080/signup'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "username": _usernameController.text.trim(),
+          "password": _passwordController.text.trim(),
+          "email": _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        }),
       );
-    } else {
-      String errorMessage = responseData['error'] ?? "Signup failed. Please try again.";
-      _showErrorSnackbar(errorMessage);
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      var responseData = json.decode(response.body);
+
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        await _saveUserSession(_usernameController.text.trim());
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
+      } else {
+        String errorMessage = responseData['error'] ?? "Signup failed. Please try again.";
+        _showErrorSnackbar(errorMessage);
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      _showErrorSnackbar("Network error: Unable to connect to the server.");
     }
-  } catch (e) {
-    setState(() {
-      _isLoading = false; // Hide loading indicator
-    });
-
-    _showErrorSnackbar("Network error: Unable to connect to the server.");
   }
-}
 
-// ✅ Show Error Snackbar (Displays username error message)
-void _showErrorSnackbar(String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: Colors.red,
-    ),
-  );
-}
-
+  // ✅ Show Error Snackbar (Displays username error message)
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(), // ✅ Dismiss keyboard on tap
-      child: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFFFC72C), Color(0xFF000000)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+    return Scaffold(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(), // Close keyboard when tapping outside
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height,
             ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // 🔹 Welcome Text
-                Text(
-                  "Create Your Account",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            child: IntrinsicHeight(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFFC72C), Color(0xFF000000)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 🔹 Logo Image (Added Here)
+                      Image.asset('assets/images/logo.png', height: 150, width: 150), // Adjust as needed
+                      SizedBox(height: 30),
 
-                Text(
-                  "Sign up to continue",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 30),
+                      Text(
+                        "Create Your Account",
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        "Sign up to continue",
+                        style: TextStyle(fontSize: 16, color: Colors.white70),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 30),
 
-                // 🔹 Username Input
-                _buildTextField(
-                  controller: _usernameController,
-                  label: "Enter your username",
-                  icon: Icons.person,
-                ),
+                      _buildTextField(
+                        controller: _usernameController,
+                        label: "Enter your username",
+                        icon: Icons.person,
+                      ),
+                      SizedBox(height: 15),
 
-                SizedBox(height: 15),
+                      _buildTextField(
+                        controller: _passwordController,
+                        label: "Enter your password",
+                        icon: Icons.lock,
+                        obscureText: true,
+                      ),
+                      SizedBox(height: 15),
 
-                // 🔹 Password Input
-                _buildTextField(
-                  controller: _passwordController,
-                  label: "Enter your password",
-                  icon: Icons.lock,
-                  obscureText: true,
-                ),
+                      _buildTextField(
+                        controller: _emailController,
+                        label: "Enter your email (optional)",
+                        icon: Icons.email,
+                      ),
+                      SizedBox(height: 30),
 
-                SizedBox(height: 15),
-
-                // 🔹 Email Input (Optional)
-                _buildTextField(
-                  controller: _emailController,
-                  label: "Enter your email (optional)",
-                  icon: Icons.email,
-                ),
-
-                SizedBox(height: 30),
-
-                // 🔹 Signup Button
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _signup,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? CircularProgressIndicator(color: Color(0xFFFFC72C))
-                      : Text(
-                          "Sign Up",
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Color(0xFFFFC72C),
-                            fontWeight: FontWeight.bold,
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _signup,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                ),
-                SizedBox(height: 20),
+                        child: _isLoading
+                            ? CircularProgressIndicator(color: Color(0xFFFFC72C))
+                            : Text(
+                                "Sign Up",
+                                style: TextStyle(fontSize: 18, color: Color(0xFFFFC72C), fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                      SizedBox(height: 20),
 
-                // 🔹 Go to Login Page
-                TextButton(
-                  onPressed: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginScreen()),
-                  ),
-                  child: Text(
-                    "Already have an account? Log In",
-                    style: TextStyle(color: Colors.white),
+                      TextButton(
+                        onPressed: () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => LoginScreen()),
+                        ),
+                        child: Text("Already have an account? Log In", style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -208,6 +193,10 @@ void _showErrorSnackbar(String message) {
         fillColor: Colors.black.withOpacity(0.5),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: Colors.white70),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFFFFC72C), width: 2),
           borderRadius: BorderRadius.circular(10),
         ),
       ),
