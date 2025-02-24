@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'signup_screen.dart';
-import 'placeholder_screen.dart';
+import 'lecture_screen.dart';
+import 'fun_activity_screen.dart';
 import 'code_entry_screen.dart';
-import 'dart:async'; // ✅ Import for Timer
 
 class EventOverviewScreen extends StatefulWidget {
   final String name;
@@ -16,21 +16,6 @@ class EventOverviewScreen extends StatefulWidget {
 }
 
 class _EventOverviewScreenState extends State<EventOverviewScreen> {
-  bool _showWelcomeMessage = true;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // ✅ Hide "Welcome, *username*" after 3 seconds
-    Timer(Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showWelcomeMessage = false;
-        });
-      }
-    });
-  }
 
   // ✅ Open Google Maps
   void _openGoogleMaps() async {
@@ -77,7 +62,7 @@ class _EventOverviewScreenState extends State<EventOverviewScreen> {
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    // 🔹 Logo Image (Added Here - Slightly Smaller)
+                    // 🔹 Logo Image (Smaller for better layout)
                     Image.asset('assets/images/logo.png', height: 100, width: 100),
                     SizedBox(height: 20),
 
@@ -102,7 +87,7 @@ class _EventOverviewScreenState extends State<EventOverviewScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => PlaceholderScreen(title: "Talk with Thomas Hartley"),
+                            builder: (context) => LectureScreen(),
                           ),
                         );
                       },
@@ -123,7 +108,7 @@ class _EventOverviewScreenState extends State<EventOverviewScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => PlaceholderScreen(title: "Fun Activity Event"),
+                            builder: (context) => FunActivityScreen(),
                           ),
                         );
                       },
@@ -167,30 +152,6 @@ class _EventOverviewScreenState extends State<EventOverviewScreen> {
                 ),
               ),
             ),
-
-            // ✅ Centered Overlay Box for "Welcome, *username*!"
-            if (_showWelcomeMessage)
-              AnimatedOpacity(
-                opacity: _showWelcomeMessage ? 1.0 : 0.0,
-                duration: Duration(seconds: 1),
-                child: Center(
-                  child: Container(
-                    padding: EdgeInsets.symmetric(vertical: 15, horizontal: 30),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7), // ✅ Dark semi-transparent overlay
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      "Welcome, ${widget.name}!",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
