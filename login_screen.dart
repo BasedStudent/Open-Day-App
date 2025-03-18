@@ -123,13 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildTextField(controller: _usernameController, label: "Username", icon: Icons.person),
-                      _buildTextField(controller: _passwordController, label: "Password", icon: Icons.lock, obscureText: true),
-                      SizedBox(height: 30),
-                      ElevatedButton(onPressed: _login, child: Text("Log In")),
-                    ],
-                  
-
                       // 🔹 Logo Image
                       Image.asset('assets/images/logo.png', height: 150, width: 150),
                       SizedBox(height: 30),
