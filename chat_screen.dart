@@ -78,17 +78,16 @@ class _ChatScreenState extends State<ChatScreen> {
             // 🔹 Chat Messages
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('messages').snapshots(),
+                stream: FirebaseFirestore.instance
+                    .collection('sessions')
+                    .doc(widget.sessionCode)
+                    .collection('messages')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) return CircularProgressIndicator();
-                  return ListView(
-                    children: snapshot.data!.docs.map((doc) {
-                      return Text(doc['text']);
-                    }).toList(),
-                  );
-                },
-              ),
-            ),
+                  if (!snapshot.hasData) {
+                    return Center(child: CircularProgressIndicator());
+                  }
 
                   final messages = snapshot.data!.docs;
 
