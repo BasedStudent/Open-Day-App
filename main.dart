@@ -6,7 +6,6 @@ import 'screens/event_overview_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(MyApp());
 }
