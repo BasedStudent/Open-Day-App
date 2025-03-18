@@ -77,14 +77,25 @@ class _CodeEntryScreenState extends State<CodeEntryScreen> {
                   SizedBox(height: 20),
 
                   // 🔹 Join Chat Button
-                 void _joinChat() {
-                  if (_codeController.text.isNotEmpty) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ChatScreen(sessionCode: _codeController.text)),
-                    );
-                  }
-
+                  ElevatedButton(
+                    onPressed: _joinChat,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      "Join Chat",
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Color(0xFFFFC72C),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
 
                   // 🔙 Back to Overview Button
                   ElevatedButton(
