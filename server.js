@@ -1,4 +1,6 @@
 require("dotenv").config();
+const fs = require("fs");
+const https = require("https");
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -9,141 +11,137 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Load SSL Certificate & Key
+const sslOptions = {
+  key: fs.readFileSync("server.key"),
+  cert: fs.readFileSync("server.cert"),
+};
+
 const PORT = process.env.PORT || 8080;
 
-// ? MySQL Connection (Using Promises)
+// ✅ MySQL Connection (Using Promises)
 const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 }).promise();
 
 db.getConnection()
-    .then(() => console.log("? Connected to MySQL Database"))
-    .catch((err) => console.error("? Database connection failed:", err));
+  .then(() => console.log("✅ Connected to MySQL Database"))
+  .catch((err) => console.error("❌ Database connection failed:", err));
 
 // ===========================================
-// ? User Signup (Now Checks for Duplicate Username)
+// ✅ User Signup
 // ===========================================
 app.post("/signup", async (req, res) => {
-    try {
-        const { username, password, email } = req.body;
+  try {
+    const { username, password, email } = req.body;
 
-        if (!username || !password) {
-            return res.status(400).json({ error: "Username and password required" });
-        }
-
-        // ? Check if the username already exists
-        const [existingUser] = await db.query("SELECT id FROM users WHERE username = ?", [username]);
-
-        if (existingUser.length > 0) {
-            return res.status(400).json({ error: "Username already taken. Please choose another." });
-        }
-
-        // ? Hash password before storing
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // ? Insert the new user into the database
-        await db.query(
-            "INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, 'user')",
-            [username, hashedPassword, email || null] // Store NULL if email is empty
-        );
-
-        console.log("? User Registered:", username);
-        res.json({ success: true, message: "User registered successfully!" });
-
-    } catch (error) {
-        console.error("? Signup Error:", error);
-        res.status(500).json({ error: "Server error" });
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password required" });
     }
+
+    const [existingUser] = await db.query("SELECT id FROM users WHERE username = ?", [username]);
+    if (existingUser.length > 0) {
+      return res.status(400).json({ error: "Username already taken. Please choose another." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await db.query(
+      "INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, 'user')",
+      [username, hashedPassword, email || null]
+    );
+
+    console.log("✅ User Registered:", username);
+    res.json({ success: true, message: "User registered successfully!" });
+
+  } catch (error) {
+    console.error("❌ Signup Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // ===========================================
-// ? User Login
+// ✅ User Login
 // ===========================================
 app.post("/login", async (req, res) => {
-    try {
-        const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-        if (!username || !password) {
-            return res.status(400).json({ error: "Username and password required" });
-        }
-
-        const [results] = await db.query("SELECT id, username, password, role FROM users WHERE username = ?", [username]);
-
-        if (results.length === 0) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
-        const user = results[0];
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(401).json({ error: "Incorrect password" });
-        }
-
-        res.status(200).json({ id: user.id, username: user.username, role: user.role });
-    } catch (error) {
-        console.error("? Login Error:", error);
-        res.status(500).json({ error: "Server error" });
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password required" });
     }
+
+    const [results] = await db.query("SELECT id, username, password, role FROM users WHERE username = ?", [username]);
+    if (results.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = results[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect password" });
+    }
+
+    res.status(200).json({ id: user.id, username: user.username, role: user.role });
+
+  } catch (error) {
+    console.error("❌ Login Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // ===========================================
-// ? Anonymous Login
+// ✅ Anonymous Login
 // ===========================================
 app.post("/anonymous-login", async (req, res) => {
-    try {
-        let isUnique = false;
-        let randomUsername = "";
+  try {
+    let isUnique = false;
+    let randomUsername = "";
 
-        while (!isUnique) {
-            const randomNumber = Math.floor(1000 + Math.random() * 9000); // Generates Anonymous#1000-9999
-            randomUsername = `Anonymous#${randomNumber}`;
-
-            const [existingUsers] = await db.query("SELECT id FROM users WHERE username = ?", [randomUsername]);
-            if (existingUsers.length === 0) {
-                isUnique = true;
-            }
-        }
-
-        // ? Insert Anonymous User with an empty password instead of NULL
-        const [result] = await db.query(
-            "INSERT INTO users (username, password, role) VALUES (?, ?, 'anonymous')",
-            [randomUsername, ""]
-        );
-
-        if (result.affectedRows > 0) {
-            return res.json({ username: randomUsername, role: "anonymous" });
-        } else {
-            return res.status(500).json({ error: "Failed to create anonymous user." });
-        }
-
-    } catch (error) {
-        console.error("? Anonymous Login Error:", error);
-        return res.status(500).json({ error: "Server error" });
+    while (!isUnique) {
+      const randomNumber = Math.floor(1000 + Math.random() * 9000);
+      randomUsername = `Anonymous#${randomNumber}`;
+      const [existingUsers] = await db.query("SELECT id FROM users WHERE username = ?", [randomUsername]);
+      if (existingUsers.length === 0) isUnique = true;
     }
+
+    const [result] = await db.query(
+      "INSERT INTO users (username, password, role) VALUES (?, ?, 'anonymous')",
+      [randomUsername, ""]
+    );
+
+    if (result.affectedRows > 0) {
+      return res.json({ username: randomUsername, role: "anonymous" });
+    } else {
+      return res.status(500).json({ error: "Failed to create anonymous user." });
+    }
+
+  } catch (error) {
+    console.error("❌ Anonymous Login Error:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
 });
 
 // ===========================================
-// ? Logout (Clears session)
+// ✅ Logout
 // ===========================================
 app.post("/logout", async (req, res) => {
-    try {
-        res.status(200).json({ message: "Logout successful" });
-    } catch (error) {
-        console.error("? Logout Error:", error);
-        res.status(500).json({ error: "Server error" });
-    }
+  try {
+    res.status(200).json({ message: "Logout successful" });
+  } catch (error) {
+    console.error("❌ Logout Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // ===========================================
-// ? Start Server
+// ✅ Start Secure HTTPS Server
 // ===========================================
-app.listen(PORT, () => {
-    console.log(`? Server running on port ${PORT}`);
+https.createServer(sslOptions, app).listen(PORT, () => {
+  console.log(`✅ Secure server running on https://localhost:${PORT}`);
 });
