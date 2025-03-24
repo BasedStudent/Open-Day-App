@@ -2,95 +2,70 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'event_overview_screen.dart';
-import 'admin_dashboard_screen.dart';
-import 'signup_screen.dart';
+import 'login_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({Key? key}) : super(key: key);
+
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  _SignupScreenState createState() => _SignupScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+class _SignupScreenState extends State<SignupScreen> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
   bool _isLoading = false;
 
-  // ✅ Login Function
-  Future<void> _login() async {
-    setState(() => _isLoading = true);
+  // ✅ Save user session in SharedPreferences after signup
+  Future<void> _saveUserSession(String username) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', username);
+  }
+
+  // ✅ Signup Function (Handles Username Already Taken)
+  Future<void> _signup() async {
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       final response = await http.post(
-        Uri.parse('https://wolfify.app:8080/login'),
+        Uri.parse('https://wolfify.app:8080/signup'),
         headers: {"Content-Type": "application/json"},
         body: json.encode({
           "username": _usernameController.text.trim(),
           "password": _passwordController.text.trim(),
+          "email": _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         }),
       );
 
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
 
-      if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userName', data['username']);
-        await prefs.setString('userRole', data['role']);
+      var responseData = json.decode(response.body);
 
-        if (data['role'] == 'admin') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => AdminDashboardScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => EventOverviewScreen(name: data['username'])),
-          );
-        }
-      } else {
-        _showError("Login failed: ${json.decode(response.body)['error']}");
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      _showError("Network error: Unable to connect to the server.");
-    }
-  }
-
-  // ✅ Login as Anonymous
-  Future<void> _loginAsAnonymous() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final response = await http.post(
-        Uri.parse('https://wolfify.app:8080/anonymous-login'),
-        headers: {"Content-Type": "application/json"},
-      );
-
-      setState(() => _isLoading = false);
-
-      if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userName', data['username']);
-        await prefs.setString('userRole', "anonymous");
-
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        await _saveUserSession(_usernameController.text.trim());
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => EventOverviewScreen(name: data['username'])),
+          MaterialPageRoute(builder: (context) => LoginScreen()),
         );
       } else {
-        _showError("Anonymous login failed: ${json.decode(response.body)['error']}");
+        String errorMessage = responseData['error'] ?? "Signup failed. Please try again.";
+        _showErrorSnackbar(errorMessage);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
-      _showError("Network error: Unable to connect to the server.");
+      setState(() {
+        _isLoading = false;
+      });
+      _showErrorSnackbar("Network error: Unable to connect to the server.");
     }
   }
 
-  // ✅ Show Error Message
-  void _showError(String message) {
+  // ✅ Show Error Snackbar (Displays username error message)
+  void _showErrorSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -122,26 +97,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 🔹 Logo Image
-                      Image.asset('assets/images/logo.png', height: 150, width: 150),
+                      // 🔹 Logo Image (Added Here)
+                      Image.asset('assets/images/logo.png', height: 150, width: 150), // Adjust as needed
                       SizedBox(height: 30),
 
-                      // 🔹 Welcome Text
                       Text(
-                        "Welcome Back!",
+                        "Create Your Account",
                         style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                         textAlign: TextAlign.center,
                       ),
                       SizedBox(height: 10),
                       Text(
-                        "Please login to continue",
+                        "Sign up to continue",
                         style: TextStyle(fontSize: 16, color: Colors.white70),
                         textAlign: TextAlign.center,
                       ),
                       SizedBox(height: 30),
 
-                      // 🔹 Username Field
                       _buildTextField(
                         controller: _usernameController,
                         label: "Enter your username",
@@ -149,18 +123,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       SizedBox(height: 15),
 
-                      // 🔹 Password Field
                       _buildTextField(
                         controller: _passwordController,
                         label: "Enter your password",
                         icon: Icons.lock,
                         obscureText: true,
                       ),
+                      SizedBox(height: 15),
+
+                      _buildTextField(
+                        controller: _emailController,
+                        label: "Enter your email (optional)",
+                        icon: Icons.email,
+                      ),
                       SizedBox(height: 30),
 
-                      // 🔹 Login Button
                       ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
+                        onPressed: _isLoading ? null : _signup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
@@ -171,38 +150,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: _isLoading
                             ? CircularProgressIndicator(color: Color(0xFFFFC72C))
                             : Text(
-                                "Log In",
+                                "Sign Up",
                                 style: TextStyle(fontSize: 18, color: Color(0xFFFFC72C), fontWeight: FontWeight.bold),
                               ),
                       ),
                       SizedBox(height: 20),
 
-                      // 🔹 Login as Anonymous Button
-                      ElevatedButton(
-                        onPressed: _isLoading ? null : _loginAsAnonymous,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: _isLoading
-                            ? CircularProgressIndicator(color: Colors.white)
-                            : Text(
-                                "Login as Anonymous",
-                                style: TextStyle(fontSize: 18, color: Color(0xFFFFC72C), fontWeight: FontWeight.bold),
-                              ),
-                      ),
-                      SizedBox(height: 20),
-
-                      // 🔹 Go to Signup Page
                       TextButton(
                         onPressed: () => Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => SignupScreen()),
+                          MaterialPageRoute(builder: (context) => LoginScreen()),
                         ),
-                        child: Text("Don't have an account? Sign Up", style: TextStyle(color: Colors.white)),
+                        child: Text("Already have an account? Log In", style: TextStyle(color: Colors.white)),
                       ),
                     ],
                   ),
