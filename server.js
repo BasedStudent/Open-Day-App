@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Load SSL Certificate & Key
+// 🔐 SSL Certificate & Key
 const sslOptions = {
   key: fs.readFileSync("server.key"),
   cert: fs.readFileSync("server.cert"),
@@ -19,7 +19,7 @@ const sslOptions = {
 
 const PORT = process.env.PORT || 8080;
 
-// ✅ MySQL Connection (Using Promises)
+// ✅ MySQL Connection
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -35,19 +35,34 @@ db.getConnection()
   .catch((err) => console.error("❌ Database connection failed:", err));
 
 // ===========================================
-// ✅ User Signup
+// ✅ User Signup with Validation
 // ===========================================
 app.post("/signup", async (req, res) => {
   try {
     const { username, password, email } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ error: "Username and password required" });
+    // Validation: username
+    if (!username || username.length < 3 || username.length > 20) {
+      return res.status(400).json({ error: "Username must be 3-20 characters long." });
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(username)) {
+      return res.status(400).json({ error: "Username may only contain letters, numbers, underscores, or hyphens." });
     }
 
+    // Validation: password
+    if (!password || password.length < 6 || password.length > 30) {
+      return res.status(400).json({ error: "Password must be 6-30 characters long." });
+    }
+
+    // Validation: email format (optional)
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({ error: "Invalid email format." });
+    }
+
+    // Check for existing user
     const [existingUser] = await db.query("SELECT id FROM users WHERE username = ?", [username]);
     if (existingUser.length > 0) {
-      return res.status(400).json({ error: "Username already taken. Please choose another." });
+      return res.status(400).json({ error: "Username already taken." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -140,8 +155,8 @@ app.post("/logout", async (req, res) => {
 });
 
 // ===========================================
-// ✅ Start Secure HTTPS Server
+// ✅ Start HTTPS Server
 // ===========================================
 https.createServer(sslOptions, app).listen(PORT, () => {
-  console.log(`✅ Secure server running on https://localhost:${PORT}`);
+  console.log(`✅ Secure server running at https://localhost:${PORT}`);
 });
