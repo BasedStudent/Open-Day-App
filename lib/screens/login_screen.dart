@@ -22,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://72.167.35.123:8080/login'),
+        Uri.parse('https://wolfify.app:8080/login'),
         headers: {"Content-Type": "application/json"},
         body: json.encode({
           "username": _usernameController.text.trim(),
@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://72.167.35.123:8080/anonymous-login'),
+        Uri.parse('https://wolfify.app:8080/anonymous-login'),
         headers: {"Content-Type": "application/json"},
       );
 
