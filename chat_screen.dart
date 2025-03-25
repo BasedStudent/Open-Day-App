@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:profanity_filter/profanity_filter.dart';
 import 'code_entry_screen.dart';
 import 'event_overview_screen.dart';
 
@@ -15,7 +16,9 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final ProfanityFilter _filter = ProfanityFilter();
   String userName = "Anonymous";
+  DateTime? timeoutUntil;
 
   @override
   void initState() {
@@ -23,29 +26,75 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadUserName();
   }
 
-  // Load the username from SharedPreferences
   Future<void> _loadUserName() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       userName = prefs.getString('userName') ?? "Anonymous";
     });
+    await _checkTimeoutStatus();
   }
 
-  // Send a message to Firestore
+  Future<void> _checkTimeoutStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final timeoutMillis = prefs.getInt('timeoutUntil');
+    if (timeoutMillis != null) {
+      final savedTime = DateTime.fromMillisecondsSinceEpoch(timeoutMillis);
+      if (DateTime.now().isBefore(savedTime)) {
+        setState(() {
+          timeoutUntil = savedTime;
+        });
+      } else {
+        setState(() {
+          timeoutUntil = null;
+        });
+      }
+    }
+  }
+
   void _sendMessage() async {
-    if (_messageController.text.trim().isNotEmpty) {
-      await FirebaseFirestore.instance
-          .collection('sessions')
-          .doc(widget.sessionCode)
-          .collection('messages')
-          .add({
-        'user': userName,
-        'text': _messageController.text.trim(),
-        'timestamp': FieldValue.serverTimestamp(),
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    final now = DateTime.now();
+    if (timeoutUntil != null && now.isBefore(timeoutUntil!)) {
+      final secondsLeft = timeoutUntil!.difference(now).inSeconds;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("You're muted for another $secondsLeft seconds."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (_filter.hasProfanity(text)) {
+      final prefs = await SharedPreferences.getInstance();
+      final newTimeout = now.add(Duration(seconds: 60));
+      await prefs.setInt('timeoutUntil', newTimeout.millisecondsSinceEpoch);
+      setState(() {
+        timeoutUntil = newTimeout;
       });
 
-      _messageController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Inappropriate language detected. Muted for 60 seconds."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
+
+    await FirebaseFirestore.instance
+        .collection('sessions')
+        .doc(widget.sessionCode)
+        .collection('messages')
+        .add({
+      'user': userName,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    _messageController.clear();
   }
 
   @override
@@ -92,7 +141,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   final messages = snapshot.data!.docs;
 
                   return ListView.builder(
-                    reverse: true, // Show newest messages at the bottom
+                    reverse: true,
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       var messageData = messages[index];
@@ -139,7 +188,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-            // 🔹 Navigation Buttons (Placed at Bottom)
+            // 🔹 Navigation Buttons
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
               child: Row(
@@ -166,7 +215,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // 📌 Styled Navigation Button
   Widget _buildNavButton(String title, VoidCallback onTap) {
     return ElevatedButton(
       onPressed: onTap,
@@ -188,7 +236,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // 📌 Styled Message Bubble
   Widget _buildMessageBubble(String sender, String message, bool isMine) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
