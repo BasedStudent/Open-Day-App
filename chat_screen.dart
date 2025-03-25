@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:profanity_filter/profanity_filter.dart';
 import 'code_entry_screen.dart';
 import 'event_overview_screen.dart';
 
@@ -16,9 +15,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final ProfanityFilter _filter = ProfanityFilter();
   String userName = "Anonymous";
-  DateTime? timeoutUntil;
 
   @override
   void initState() {
@@ -26,75 +23,87 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadUserName();
   }
 
+   // 🔹 PLACE HELPER HERE 👇
+  String _capitalizeName(String name) {
+    if (name.isEmpty) return "";
+    return name[0].toUpperCase() + name.substring(1);
+  }
+
+
   Future<void> _loadUserName() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       userName = prefs.getString('userName') ?? "Anonymous";
     });
-    await _checkTimeoutStatus();
-  }
-
-  Future<void> _checkTimeoutStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final timeoutMillis = prefs.getInt('timeoutUntil');
-    if (timeoutMillis != null) {
-      final savedTime = DateTime.fromMillisecondsSinceEpoch(timeoutMillis);
-      if (DateTime.now().isBefore(savedTime)) {
-        setState(() {
-          timeoutUntil = savedTime;
-        });
-      } else {
-        setState(() {
-          timeoutUntil = null;
-        });
-      }
-    }
   }
 
   void _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    final now = DateTime.now();
-    if (timeoutUntil != null && now.isBefore(timeoutUntil!)) {
-      final secondsLeft = timeoutUntil!.difference(now).inSeconds;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("You're muted for another $secondsLeft seconds."),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    if (_filter.hasProfanity(text)) {
-      final prefs = await SharedPreferences.getInstance();
-      final newTimeout = now.add(Duration(seconds: 60));
-      await prefs.setInt('timeoutUntil', newTimeout.millisecondsSinceEpoch);
-      setState(() {
-        timeoutUntil = newTimeout;
+    if (_messageController.text.trim().isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(widget.sessionCode)
+          .collection('messages')
+          .add({
+        'user': userName,
+        'text': _messageController.text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Inappropriate language detected. Muted for 60 seconds."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+      _messageController.clear();
     }
+  }
 
+  Future<void> _deleteMessage(String messageId) async {
     await FirebaseFirestore.instance
         .collection('sessions')
         .doc(widget.sessionCode)
         .collection('messages')
-        .add({
-      'user': userName,
-      'text': text,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+        .doc(messageId)
+        .delete();
+  }
 
-    _messageController.clear();
+  Future<void> _editMessage(String messageId, String currentText) async {
+    final TextEditingController _editController =
+        TextEditingController(text: currentText);
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.black87,
+        title: Text("Edit Message", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: _editController,
+          style: TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: "Update your message",
+            hintStyle: TextStyle(color: Colors.white70),
+            filled: true,
+            fillColor: Colors.black26,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final updatedText = _editController.text.trim();
+              if (updatedText.isNotEmpty) {
+                await FirebaseFirestore.instance
+                    .collection('sessions')
+                    .doc(widget.sessionCode)
+                    .collection('messages')
+                    .doc(messageId)
+                    .update({'text': updatedText});
+              }
+              Navigator.pop(context);
+            },
+            child: Text("Save", style: TextStyle(color: Color(0xFFFFC72C))),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -110,19 +119,17 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: Column(
           children: [
-            // 🔹 Header
-            Padding(
-              padding: const EdgeInsets.only(top: 40, bottom: 20),
-              child: Text(
-                "Live Chat - ${widget.sessionCode}",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
+            SizedBox(height: 40),
+            Text(
+              "Live Chat - ${widget.sessionCode}",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
+              textAlign: TextAlign.center,
             ),
+            SizedBox(height: 20),
 
             // 🔹 Chat Messages
             Expanded(
@@ -145,19 +152,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       var messageData = messages[index];
+                      final sender = messageData['user'];
+                      final text = messageData['text'];
+                      final isMine = sender == userName;
+                      final messageId = messageData.id;
 
-                      return _buildMessageBubble(
-                        messageData['user'],
-                        messageData['text'],
-                        messageData['user'] == userName,
-                      );
+                      return _buildMessageBubble(sender, text, isMine, messageId);
                     },
                   );
                 },
               ),
             ),
 
-            // 🔹 Message Input Field
+            // 🔹 Message Input
             Container(
               padding: EdgeInsets.symmetric(vertical: 10, horizontal: 15),
               color: Colors.black.withOpacity(0.9),
@@ -203,7 +210,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   _buildNavButton("Back to Overview", () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => EventOverviewScreen(name: userName)),
+                      MaterialPageRoute(
+                          builder: (context) => EventOverviewScreen(name: userName)),
                     );
                   }),
                 ],
@@ -215,15 +223,14 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // 📌 Navigation Button
   Widget _buildNavButton(String title, VoidCallback onTap) {
     return ElevatedButton(
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.black,
         padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       child: Text(
         title,
@@ -236,31 +243,71 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(String sender, String message, bool isMine) {
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isMine ? Color(0xFFFFC72C) : Colors.black.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(
-              sender,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70),
+  // 📌 Message Bubble with Edit/Delete
+  Widget _buildMessageBubble(String sender, String message, bool isMine, String messageId) {
+  return Align(
+    alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+    child: Container(
+      margin: EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isMine ? Color(0xFFFFC72C) : Colors.black.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Message content
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  isMine ? CrossAxisAlignment.start : CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _capitalizeName(sender),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isMine ? Colors.black : Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isMine ? Colors.black : Colors.white,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 5),
-            Text(
-              message,
-              style: TextStyle(fontSize: 16, color: Colors.white),
+          ),
+
+          // Action icons (Edit/Delete)
+          if (isMine) ...[
+            SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.edit, size: 25, color: isMine ? Colors.black : Colors.white),
+                  onPressed: () => _editMessage(messageId, message),
+                  tooltip: "Edit",
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete, size: 25, color: isMine ? Colors.black : Colors.white),
+                  onPressed: () => _deleteMessage(messageId),
+                  tooltip: "Delete",
+                ),
+              ],
             ),
           ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 }
